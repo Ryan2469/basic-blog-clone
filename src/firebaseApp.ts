@@ -16,7 +16,7 @@ try {
   app = getApp("app");
 } catch (e) {
   app = initializeApp(firebaseConfig, "app");
-}
+} 
 
 const firebase = initializeApp(firebaseConfig);
 
