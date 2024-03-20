@@ -11,6 +11,7 @@ function App() {
   console.log(auth, "auth");
 
   const [ isAuthenticated, setIsAuthenticated ] = useState<boolean>(!!auth?.currentUser);
+  console.log("테스트 중");
 
   return (
     <>
