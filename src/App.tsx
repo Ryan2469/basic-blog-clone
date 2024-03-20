@@ -12,6 +12,8 @@ function App() {
 
   const [ isAuthenticated, setIsAuthenticated ] = useState<boolean>(!!auth?.currentUser);
   console.log('원격에 푸시할 분기를 체크 아웃하세요');
+  console.log('원격에 푸시할 분기를 체크 아웃하세요');
+  console.log('원격에 푸시할 분기를 체크 아웃하세요');
   return (
     <>
       <Router isAuthenticated={isAuthenticated}/>
