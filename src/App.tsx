@@ -23,8 +23,6 @@ function App() {
     })
   })
 
-  console.log("Git Graph ReTest");
-
   return (
     <>
       <ToastContainer />
