@@ -1,23 +1,33 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Router from 'components/Router';
 import { app } from "firebaseApp";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Loader from 'components/Loader';
 
 function App() {
   
   const auth = getAuth(app);
-  console.log(auth, "auth");
-
+  const [init, setInit] = useState<boolean>(false);
   const [ isAuthenticated, setIsAuthenticated ] = useState<boolean>(!!auth?.currentUser);
-  console.log('원격에 푸시할 분기를 체크 아웃하세요');
-  console.log('원격에 푸시할 분기를 체크 아웃하세요');
-  console.log('원격에 푸시할 분기를 체크 아웃하세요');
+  
+  useEffect(() => {
+    onAuthStateChanged(auth, (user) => {
+      console.log(auth, "auth", user);
+      if(user){
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
+      setInit(true);
+    })
+  })
+
   return (
     <>
-      <Router isAuthenticated={isAuthenticated}/>
       <ToastContainer />
+      {init ? <Router isAuthenticated={isAuthenticated} /> : <Loader />}
     </>
   );
 }
