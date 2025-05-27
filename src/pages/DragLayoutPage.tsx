@@ -1,23 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from '@emotion/styled';
 
-type LayoutNode = PanelNode | SplitNode;
-
-interface PanelNode {
-  type: "panel";
-  id: string;
-  panelType: string;
-}
-
-interface SplitNode {
-  type: "split";
-  id: string;
-  left: LayoutNode;
-  right: LayoutNode;
-  orientation: "horizontal" | "vertical";
-  ratio: number;
-}
-
 interface Panel {
   id: string;
   x: number;
@@ -35,199 +18,8 @@ interface PanelProps {
 
 const CONTAINER_WIDTH = 1400;
 const CONTAINER_HEIGHT = 1200;
-const PANEL_GAP = 20;
 const MIN_PANEL_WIDTH = 200;
 const MIN_PANEL_HEIGHT = 150;
-
-class LayoutManager {
-  private root: LayoutNode;
-  private containerWidth: number;
-  private containerHeight: number;
-
-  constructor(initialLayout: LayoutNode, width: number, height: number) {
-    this.root = initialLayout;
-    this.containerWidth = width;
-    this.containerHeight = height;
-  }
-
-  calculateLayout(): Panel[] {
-    const coordinates: Panel[] = [];
-    this.traverseTree(this.root, 0, 0, this.containerWidth, this.containerHeight, coordinates);
-    return coordinates;
-  }
-
-  private traverseTree(
-    node: LayoutNode,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    coordinates: Panel[]
-  ) {
-    if (node.type === "panel") {
-      coordinates.push({
-        id: node.id,
-        x,
-        y,
-        width,
-        height,
-        content: `패널 ${node.id}`
-      });
-    } else {
-      const isHorizontal = node.orientation === "horizontal";
-      const splitSize = isHorizontal
-        ? width * node.ratio
-        : height * node.ratio;
-
-      if (isHorizontal) {
-        this.traverseTree(node.left, x, y, splitSize, height, coordinates);
-        this.traverseTree(node.right, x + splitSize, y, width - splitSize, height, coordinates);
-      } else {
-        this.traverseTree(node.left, x, y, width, splitSize, coordinates);
-        this.traverseTree(node.right, x, y + splitSize, width, height - splitSize, coordinates);
-      }
-    }
-  }
-
-  updateSplitRatio(splitNodeId: string, newRatio: number): void {
-    this.updateSplitRatioRecursive(this.root, splitNodeId, newRatio);
-  }
-
-  private updateSplitRatioRecursive(node: LayoutNode, targetId: string, newRatio: number): boolean {
-    if (node.type === "split") {
-      if (node.id === targetId) {
-        node.ratio = Math.max(0.1, Math.min(0.9, newRatio));
-        return true;
-      }
-      return (
-        this.updateSplitRatioRecursive(node.left, targetId, newRatio) ||
-        this.updateSplitRatioRecursive(node.right, targetId, newRatio)
-      );
-    }
-    return false;
-  }
-
-  movePanel(fromId: string, toId: string, direction: "top" | "right" | "bottom" | "left"): void {
-    const movedPanel = this.findAndRemovePanel(fromId);
-    if (!movedPanel) return;
-
-    this.insertPanel(toId, movedPanel, direction);
-  }
-
-  private findAndRemovePanel(panelId: string): PanelNode | null {
-    const result = this.findAndRemovePanelRecursive(this.root, panelId);
-    if (result.panel) {
-      this.root = result.newTree || this.root;
-    }
-    return result.panel;
-  }
-
-  private findAndRemovePanelRecursive(
-    node: LayoutNode,
-    panelId: string
-  ): { panel: PanelNode | null; newTree: LayoutNode | null } {
-    if (node.type === "panel") {
-      if (node.id === panelId) {
-        return { panel: node, newTree: null };
-      }
-      return { panel: null, newTree: node };
-    }
-
-    const leftResult = this.findAndRemovePanelRecursive(node.left, panelId);
-    if (leftResult.panel) {
-      if (leftResult.newTree) {
-        node.left = leftResult.newTree;
-        return { panel: leftResult.panel, newTree: node };
-      }
-      return { panel: leftResult.panel, newTree: node.right };
-    }
-
-    const rightResult = this.findAndRemovePanelRecursive(node.right, panelId);
-    if (rightResult.panel) {
-      if (rightResult.newTree) {
-        node.right = rightResult.newTree;
-        return { panel: rightResult.panel, newTree: node };
-      }
-      return { panel: rightResult.panel, newTree: node.left };
-    }
-
-    return { panel: null, newTree: node };
-  }
-
-  private insertPanel(targetId: string, panel: PanelNode, direction: "top" | "right" | "bottom" | "left"): void {
-    const isHorizontal = direction === "left" || direction === "right";
-    const ratio = 0.5;
-
-    this.insertPanelRecursive(this.root, targetId, panel, direction, isHorizontal, ratio);
-  }
-
-  private insertPanelRecursive(
-    node: LayoutNode,
-    targetId: string,
-    panel: PanelNode,
-    direction: "top" | "right" | "bottom" | "left",
-    isHorizontal: boolean,
-    ratio: number
-  ): boolean {
-    if (node.type === "panel") {
-      if (node.id === targetId) {
-        const newSplit: SplitNode = {
-          type: "split",
-          id: `split-${Date.now()}`,
-          orientation: isHorizontal ? "horizontal" : "vertical",
-          ratio,
-          left: direction === "left" || direction === "top" ? panel : node,
-          right: direction === "left" || direction === "top" ? node : panel
-        };
-        Object.assign(node, newSplit);
-        return true;
-      }
-      return false;
-    }
-
-    return (
-      this.insertPanelRecursive(node.left, targetId, panel, direction, isHorizontal, ratio) ||
-      this.insertPanelRecursive(node.right, targetId, panel, direction, isHorizontal, ratio)
-    );
-  }
-}
-
-const initialLayout: LayoutNode = {
-  type: "split",
-  id: "split-1",
-  orientation: "vertical",
-  ratio: 0.5,
-  left: {
-    type: "split",
-    id: "split-2",
-    orientation: "horizontal",
-    ratio: 0.5,
-    left: { type: "panel", id: "1", panelType: "차트" },
-    right: { type: "panel", id: "2", panelType: "호가" }
-  },
-  right: {
-    type: "split",
-    id: "split-3",
-    orientation: "horizontal",
-    ratio: 0.5,
-    left: {
-      type: "split",
-      id: "split-4",
-      orientation: "vertical",
-      ratio: 0.5,
-      left: { type: "panel", id: "3", panelType: "실시간시세" },
-      right: { type: "panel", id: "4", panelType: "주문하기" }
-    },
-    right: {
-      type: "split",
-      id: "split-5",
-      orientation: "vertical",
-      ratio: 0.5,
-      left: { type: "panel", id: "5", panelType: "차트" },
-      right: { type: "panel", id: "6", panelType: "호가" }
-    }
-  }
-};
 
 const DragLayoutPage: React.FC = () => {
   const [panels, setPanels] = useState<Panel[]>([
@@ -239,23 +31,14 @@ const DragLayoutPage: React.FC = () => {
     { id: '6', x: 840, y: 320, width: 400, height: 300, content: '패널 6' },
   ]);
 
+  console.log('panels :', panels);
+
   const [draggedPanel, setDraggedPanel] = useState<string | null>(null);
   const [overlappedPanel, setOverlappedPanel] = useState<string | null>(null);
   const [resizingPanel, setResizingPanel] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState<'se' | 'e' | 's' | null>(null);
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-  const [startDims, setStartDims] = useState({ width: 0, height: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
-
-  const checkCollision = (panel1: Panel, panel2: Panel, gap: number = PANEL_GAP): boolean => {
-    return !(
-      panel1.x + panel1.width + gap <= panel2.x ||
-      panel1.x >= panel2.x + panel2.width + gap ||
-      panel1.y + panel1.height + gap <= panel2.y ||
-      panel1.y >= panel2.y + panel2.height + gap
-    );
-  };
 
   const checkOverlap = (panel1: Panel, panel2: Panel): boolean => {
     const center1 = {
@@ -269,40 +52,6 @@ const DragLayoutPage: React.FC = () => {
     
     return Math.abs(center1.x - center2.x) < panel2.width / 2 &&
            Math.abs(center1.y - center2.y) < panel2.height / 2;
-  };
-
-  const swapPanels = (panel1Id: string, panel2Id: string) => {
-    setPanels(prev => {
-      const newPanels = [...prev];
-      const panel1Index = newPanels.findIndex(p => p.id === panel1Id);
-      const panel2Index = newPanels.findIndex(p => p.id === panel2Id);
-      
-      if (panel1Index === -1 || panel2Index === -1) return prev;
-      
-      const panel1 = { ...newPanels[panel1Index] };
-      const panel2 = { ...newPanels[panel2Index] };
-      
-      // 위치와 크기 교환
-      const tempX = panel1.x;
-      const tempY = panel1.y;
-      const tempWidth = panel1.width;
-      const tempHeight = panel1.height;
-      
-      panel1.x = panel2.x;
-      panel1.y = panel2.y;
-      panel1.width = panel2.width;
-      panel1.height = panel2.height;
-      
-      panel2.x = tempX;
-      panel2.y = tempY;
-      panel2.width = tempWidth;
-      panel2.height = tempHeight;
-      
-      newPanels[panel1Index] = panel1;
-      newPanels[panel2Index] = panel2;
-      
-      return newPanels;
-    });
   };
 
   const handleMouseDown = (
@@ -325,16 +74,20 @@ const DragLayoutPage: React.FC = () => {
     } else {
       setResizingPanel(panelId);
       setResizeDirection(action.replace('resize-', '') as 'se' | 'e' | 's');
-      setStartDims({ width: panel.width, height: panel.height });
     }
-    
-    setStartPos({ x: e.clientX - panel.x, y: e.clientY - panel.y });
   };
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!containerRef.current) return;
     
     const containerRect = containerRef.current.getBoundingClientRect();
+
+    console.log('draggedPanel : ', draggedPanel);
+    console.log('overlappedPanel : ', overlappedPanel);
+    console.log('resizingPanel : ', resizingPanel);
+    console.log('resizeDirection : ', resizeDirection);
+    console.log('containerRef : ', containerRef);
+    console.log('dragOffsetRef : ', dragOffsetRef);
 
     if (draggedPanel) {
       setPanels(prev => {
@@ -357,7 +110,6 @@ const DragLayoutPage: React.FC = () => {
           y: newY
         };
 
-        // 다른 패널과의 오버랩 확인
         let foundOverlap = false;
         for (let i = 0; i < updatedPanels.length; i++) {
           if (i !== panelIndex && checkOverlap(updatedPanels[panelIndex], updatedPanels[i])) {
@@ -403,13 +155,12 @@ const DragLayoutPage: React.FC = () => {
           );
         }
 
-        const tempPanel = {
+        updatedPanels[panelIndex] = {
           ...panel,
           width: newWidth,
           height: newHeight
         };
 
-        updatedPanels[panelIndex] = tempPanel;
         return updatedPanels;
       });
     }
@@ -424,11 +175,9 @@ const DragLayoutPage: React.FC = () => {
         
         if (draggedPanelIndex === -1 || overlappedPanelIndex === -1) return prev;
         
-        // 두 패널의 위치와 크기를 교환
         const draggedPanelData = { ...newPanels[draggedPanelIndex] };
         const overlappedPanelData = { ...newPanels[overlappedPanelIndex] };
         
-        // 위치와 크기 교환
         newPanels[draggedPanelIndex] = {
           ...draggedPanelData,
           x: overlappedPanelData.x,
