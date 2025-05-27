@@ -30,6 +30,7 @@ interface Panel {
 interface PanelProps {
   isDragging: boolean;
   isResizing: boolean;
+  isOverlapped?: boolean;
 }
 
 const CONTAINER_WIDTH = 1400;
@@ -239,6 +240,7 @@ const DragLayoutPage: React.FC = () => {
   ]);
 
   const [draggedPanel, setDraggedPanel] = useState<string | null>(null);
+  const [overlappedPanel, setOverlappedPanel] = useState<string | null>(null);
   const [resizingPanel, setResizingPanel] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState<'se' | 'e' | 's' | null>(null);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
@@ -253,6 +255,54 @@ const DragLayoutPage: React.FC = () => {
       panel1.y + panel1.height + gap <= panel2.y ||
       panel1.y >= panel2.y + panel2.height + gap
     );
+  };
+
+  const checkOverlap = (panel1: Panel, panel2: Panel): boolean => {
+    const center1 = {
+      x: panel1.x + panel1.width / 2,
+      y: panel1.y + panel1.height / 2
+    };
+    const center2 = {
+      x: panel2.x + panel2.width / 2,
+      y: panel2.y + panel2.height / 2
+    };
+    
+    return Math.abs(center1.x - center2.x) < panel2.width / 2 &&
+           Math.abs(center1.y - center2.y) < panel2.height / 2;
+  };
+
+  const swapPanels = (panel1Id: string, panel2Id: string) => {
+    setPanels(prev => {
+      const newPanels = [...prev];
+      const panel1Index = newPanels.findIndex(p => p.id === panel1Id);
+      const panel2Index = newPanels.findIndex(p => p.id === panel2Id);
+      
+      if (panel1Index === -1 || panel2Index === -1) return prev;
+      
+      const panel1 = { ...newPanels[panel1Index] };
+      const panel2 = { ...newPanels[panel2Index] };
+      
+      // 위치와 크기 교환
+      const tempX = panel1.x;
+      const tempY = panel1.y;
+      const tempWidth = panel1.width;
+      const tempHeight = panel1.height;
+      
+      panel1.x = panel2.x;
+      panel1.y = panel2.y;
+      panel1.width = panel2.width;
+      panel1.height = panel2.height;
+      
+      panel2.x = tempX;
+      panel2.y = tempY;
+      panel2.width = tempWidth;
+      panel2.height = tempHeight;
+      
+      newPanels[panel1Index] = panel1;
+      newPanels[panel2Index] = panel2;
+      
+      return newPanels;
+    });
   };
 
   const handleMouseDown = (
@@ -301,19 +351,22 @@ const DragLayoutPage: React.FC = () => {
           y: Math.max(0, Math.min(newY, CONTAINER_HEIGHT - updatedPanels[panelIndex].height))
         };
 
-        let hasCollision = false;
+        // 다른 패널과의 오버랩 확인
+        let foundOverlap = false;
         for (let i = 0; i < updatedPanels.length; i++) {
-          if (i !== panelIndex && checkCollision(tempPanel, updatedPanels[i])) {
-            hasCollision = true;
+          if (i !== panelIndex && checkOverlap(tempPanel, updatedPanels[i])) {
+            setOverlappedPanel(updatedPanels[i].id);
+            foundOverlap = true;
             break;
           }
         }
 
-        if (!hasCollision) {
-          updatedPanels[panelIndex] = tempPanel;
-          return updatedPanels;
+        if (!foundOverlap) {
+          setOverlappedPanel(null);
         }
-        return prev;
+
+        updatedPanels[panelIndex] = tempPanel;
+        return updatedPanels;
       });
     } else if (resizingPanel) {
       setPanels(prev => {
@@ -351,25 +404,18 @@ const DragLayoutPage: React.FC = () => {
           height: newHeight
         };
 
-        let hasCollision = false;
-        for (let i = 0; i < updatedPanels.length; i++) {
-          if (i !== panelIndex && checkCollision(tempPanel, updatedPanels[i])) {
-            hasCollision = true;
-            break;
-          }
-        }
-
-        if (!hasCollision) {
-          updatedPanels[panelIndex] = tempPanel;
-          return updatedPanels;
-        }
-        return prev;
+        updatedPanels[panelIndex] = tempPanel;
+        return updatedPanels;
       });
     }
   };
 
   const handleMouseUp = () => {
+    if (draggedPanel && overlappedPanel) {
+      swapPanels(draggedPanel, overlappedPanel);
+    }
     setDraggedPanel(null);
+    setOverlappedPanel(null);
     setResizingPanel(null);
     setResizeDirection(null);
   };
@@ -400,6 +446,7 @@ const DragLayoutPage: React.FC = () => {
           }}
           isDragging={panel.id === draggedPanel}
           isResizing={panel.id === resizingPanel}
+          isOverlapped={panel.id === overlappedPanel}
         >
           <PanelHeader onMouseDown={(e) => handleMouseDown(e, panel.id, 'drag')}>
             {panel.content}
@@ -437,7 +484,7 @@ const Panel = styled.div<PanelProps>`
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   user-select: none;
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow 0.2s, transform 0.2s, border 0.2s;
   
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -450,6 +497,11 @@ const Panel = styled.div<PanelProps>`
 
   ${({ isResizing }) => isResizing && `
     z-index: 1000;
+  `}
+
+  ${({ isOverlapped }) => isOverlapped && `
+    border: 2px solid #2196f3;
+    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.3);
   `}
 `;
 
