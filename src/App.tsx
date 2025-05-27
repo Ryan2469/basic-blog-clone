@@ -5,6 +5,7 @@ import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Loader from 'components/Loader';
+import DragLayoutPage from './pages/DragLayoutPage';
 
 function App() {
   
@@ -24,10 +25,12 @@ function App() {
   })
 
   return (
-    <>
+    <div className="App">
       <ToastContainer />
       {init ? <Router isAuthenticated={isAuthenticated} /> : <Loader />}
-    </>
+      
+      <DragLayoutPage />
+    </div>
   );
 }
 
