@@ -1,7 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from '@emotion/styled';
 
-interface Panel {
+type LayoutNode = PanelNode | SplitNode;
+
+interface PanelNode {
+  type: 'panel';
+  id: string;
+  content: string;
+}
+
+interface SplitNode {
+  type: 'split';
+  orientation: 'horizontal' | 'vertical';
+  ratio: number;
+  left: LayoutNode;
+  right: LayoutNode;
+}
+
+interface PanelPosition {
   id: string;
   x: number;
   y: number;
@@ -21,18 +37,103 @@ const CONTAINER_HEIGHT = 1200;
 const MIN_PANEL_WIDTH = 200;
 const MIN_PANEL_HEIGHT = 150;
 
+const initialLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'vertical',
+  ratio: 0.5,
+  left: {
+    type: 'split',
+    orientation: 'horizontal',
+    ratio: 0.5,
+    left: { type: 'panel', id: '1', content: '패널 1' },
+    right: { type: 'panel', id: '2', content: '패널 2' }
+  },
+  right: {
+    type: 'split',
+    orientation: 'horizontal',
+    ratio: 0.5,
+    left: {
+      type: 'split',
+      orientation: 'vertical',
+      ratio: 0.5,
+      left: { type: 'panel', id: '3', content: '패널 3' },
+      right: { type: 'panel', id: '4', content: '패널 4' }
+    },
+    right: {
+      type: 'split',
+      orientation: 'vertical',
+      ratio: 0.5,
+      left: { type: 'panel', id: '5', content: '패널 5' },
+      right: { type: 'panel', id: '6', content: '패널 6' }
+    }
+  }
+};
+
+const calculatePanelPositions = (
+  node: LayoutNode,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): PanelPosition[] => {
+  if (node.type === 'panel') {
+    return [{
+      id: node.id,
+      x,
+      y,
+      width,
+      height,
+      content: node.content
+    }];
+  }
+
+  const { orientation, ratio, left, right } = node;
+
+  if (orientation === 'vertical') {
+    const splitX = x + width * ratio;
+    return [
+      ...calculatePanelPositions(left, x, y, width * ratio, height),
+      ...calculatePanelPositions(right, splitX, y, width * (1 - ratio), height)
+    ];
+  } else {
+    const splitY = y + height * ratio;
+    return [
+      ...calculatePanelPositions(left, x, y, width, height * ratio),
+      ...calculatePanelPositions(right, x, splitY, width, height * (1 - ratio))
+    ];
+  }
+};
+
+const findNodeById = (node: LayoutNode, id: string): LayoutNode | null => {
+  if (node.type === 'panel') {
+    return node.id === id ? node : null;
+  }
+
+  const leftResult = findNodeById(node.left, id);
+  if (leftResult) return leftResult;
+
+  return findNodeById(node.right, id);
+};
+
+const findParentNode = (node: LayoutNode, id: string): SplitNode | null => {
+  if (node.type === 'panel') {
+    return null;
+  }
+
+  if ((node.left.type === 'panel' && node.left.id === id) ||
+      (node.right.type === 'panel' && node.right.id === id)) {
+    return node;
+  }
+
+  const leftResult = findParentNode(node.left, id);
+  if (leftResult) return leftResult;
+
+  return findParentNode(node.right, id);
+};
+
 const DragLayoutPage: React.FC = () => {
-  const [panels, setPanels] = useState<Panel[]>([
-    { id: '1', x: 0, y: 0, width: 400, height: 300, content: '패널 1' },
-    { id: '2', x: 420, y: 0, width: 400, height: 300, content: '패널 2' },
-    { id: '3', x: 840, y: 0, width: 400, height: 300, content: '패널 3' },
-    { id: '4', x: 0, y: 320, width: 400, height: 300, content: '패널 4' },
-    { id: '5', x: 420, y: 320, width: 400, height: 300, content: '패널 5' },
-    { id: '6', x: 840, y: 320, width: 400, height: 300, content: '패널 6' },
-  ]);
-
-  console.log('panels :', panels);
-
+  const [layout, setLayout] = useState<LayoutNode>(initialLayout);
+  const [panels, setPanels] = useState<PanelPosition[]>([]);
   const [draggedPanel, setDraggedPanel] = useState<string | null>(null);
   const [overlappedPanel, setOverlappedPanel] = useState<string | null>(null);
   const [resizingPanel, setResizingPanel] = useState<string | null>(null);
@@ -40,19 +141,10 @@ const DragLayoutPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
 
-  const checkOverlap = (panel1: Panel, panel2: Panel): boolean => {
-    const center1 = {
-      x: panel1.x + panel1.width / 2,
-      y: panel1.y + panel1.height / 2
-    };
-    const center2 = {
-      x: panel2.x + panel2.width / 2,
-      y: panel2.y + panel2.height / 2
-    };
-    
-    return Math.abs(center1.x - center2.x) < panel2.width / 2 &&
-           Math.abs(center1.y - center2.y) < panel2.height / 2;
-  };
+  useEffect(() => {
+    const positions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
+    setPanels(positions);
+  }, [layout]);
 
   const handleMouseDown = (
     e: React.MouseEvent<HTMLDivElement>,
@@ -77,125 +169,121 @@ const DragLayoutPage: React.FC = () => {
     }
   };
 
+  const updateNodeRatio = (node: LayoutNode, panelId: string, newRatio: number): LayoutNode => {
+    if (node.type === 'panel') {
+      return node;
+    }
+
+    if ((node.left.type === 'panel' && node.left.id === panelId) ||
+        (node.right.type === 'panel' && node.right.id === panelId)) {
+      return {
+        ...node,
+        ratio: Math.max(0.1, Math.min(0.9, newRatio))
+      };
+    }
+
+    return {
+      ...node,
+      left: updateNodeRatio(node.left, panelId, newRatio),
+      right: updateNodeRatio(node.right, panelId, newRatio)
+    };
+  };
+
   const handleMouseMove = (e: MouseEvent) => {
     if (!containerRef.current) return;
     
     const containerRect = containerRef.current.getBoundingClientRect();
 
-    console.log('draggedPanel : ', draggedPanel);
-    console.log('overlappedPanel : ', overlappedPanel);
-    console.log('resizingPanel : ', resizingPanel);
-    console.log('resizeDirection : ', resizeDirection);
-    console.log('containerRef : ', containerRef);
-    console.log('dragOffsetRef : ', dragOffsetRef);
-
     if (draggedPanel) {
-      setPanels(prev => {
-        const updatedPanels = [...prev];
-        const panelIndex = updatedPanels.findIndex(p => p.id === draggedPanel);
-        if (panelIndex === -1) return prev;
+      const panel = panels.find(p => p.id === draggedPanel);
+      if (!panel) return;
 
-        const newX = Math.max(0, Math.min(
-          e.clientX - dragOffsetRef.current.x - containerRect.left,
-          CONTAINER_WIDTH - updatedPanels[panelIndex].width
-        ));
-        const newY = Math.max(0, Math.min(
-          e.clientY - dragOffsetRef.current.y - containerRect.top,
-          CONTAINER_HEIGHT - updatedPanels[panelIndex].height
-        ));
+      const newX = Math.max(0, Math.min(
+        e.clientX - dragOffsetRef.current.x - containerRect.left,
+        CONTAINER_WIDTH - panel.width
+      ));
+      const newY = Math.max(0, Math.min(
+        e.clientY - dragOffsetRef.current.y - containerRect.top,
+        CONTAINER_HEIGHT - panel.height
+      ));
 
-        updatedPanels[panelIndex] = {
-          ...updatedPanels[panelIndex],
-          x: newX,
-          y: newY
-        };
+      // 드래그 중인 패널의 중심점
+      const centerX = newX + panel.width / 2;
+      const centerY = newY + panel.height / 2;
 
-        let foundOverlap = false;
-        for (let i = 0; i < updatedPanels.length; i++) {
-          if (i !== panelIndex && checkOverlap(updatedPanels[panelIndex], updatedPanels[i])) {
-            setOverlappedPanel(updatedPanels[i].id);
-            foundOverlap = true;
-            break;
-          }
+      // 다른 패널과의 오버랩 확인
+      let foundOverlap = false;
+      for (const otherPanel of panels) {
+        if (otherPanel.id === draggedPanel) continue;
+
+        const otherCenterX = otherPanel.x + otherPanel.width / 2;
+        const otherCenterY = otherPanel.y + otherPanel.height / 2;
+
+        if (Math.abs(centerX - otherCenterX) < panel.width / 2 &&
+            Math.abs(centerY - otherCenterY) < panel.height / 2) {
+          setOverlappedPanel(otherPanel.id);
+          foundOverlap = true;
+          break;
         }
+      }
 
-        if (!foundOverlap) {
-          setOverlappedPanel(null);
-        }
+      if (!foundOverlap) {
+        setOverlappedPanel(null);
+      }
 
-        return updatedPanels;
-      });
+      setPanels(prev => prev.map(p => 
+        p.id === draggedPanel ? { ...p, x: newX, y: newY } : p
+      ));
     } else if (resizingPanel) {
-      setPanels(prev => {
-        const updatedPanels = [...prev];
-        const panelIndex = updatedPanels.findIndex(p => p.id === resizingPanel);
-        if (panelIndex === -1) return prev;
+      const panel = panels.find(p => p.id === resizingPanel);
+      if (!panel) return;
 
-        const panel = updatedPanels[panelIndex];
-        let newWidth = panel.width;
-        let newHeight = panel.height;
+      const parentNode = findParentNode(layout, resizingPanel);
+      if (!parentNode) return;
 
-        if (resizeDirection === 'se' || resizeDirection === 'e') {
-          newWidth = Math.max(
-            MIN_PANEL_WIDTH,
-            Math.min(
-              e.clientX - containerRect.left - panel.x,
-              CONTAINER_WIDTH - panel.x
-            )
-          );
-        }
+      if (resizeDirection === 'e' || resizeDirection === 'se') {
+        const newWidth = Math.max(
+          MIN_PANEL_WIDTH,
+          Math.min(
+            e.clientX - containerRect.left - panel.x,
+            CONTAINER_WIDTH - panel.x
+          )
+        );
+        const newRatio = newWidth / CONTAINER_WIDTH;
+        setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
+      }
 
-        if (resizeDirection === 'se' || resizeDirection === 's') {
-          newHeight = Math.max(
-            MIN_PANEL_HEIGHT,
-            Math.min(
-              e.clientY - containerRect.top - panel.y,
-              CONTAINER_HEIGHT - panel.y
-            )
-          );
-        }
-
-        updatedPanels[panelIndex] = {
-          ...panel,
-          width: newWidth,
-          height: newHeight
-        };
-
-        return updatedPanels;
-      });
+      if (resizeDirection === 's' || resizeDirection === 'se') {
+        const newHeight = Math.max(
+          MIN_PANEL_HEIGHT,
+          Math.min(
+            e.clientY - containerRect.top - panel.y,
+            CONTAINER_HEIGHT - panel.y
+          )
+        );
+        const newRatio = newHeight / CONTAINER_HEIGHT;
+        setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
+      }
     }
+  };
+
+  const swapNodes = (node: LayoutNode, id1: string, id2: string): LayoutNode => {
+    if (node.type === 'panel') {
+      if (node.id === id1) return { ...node, id: id2 };
+      if (node.id === id2) return { ...node, id: id1 };
+      return node;
+    }
+
+    return {
+      ...node,
+      left: swapNodes(node.left, id1, id2),
+      right: swapNodes(node.right, id1, id2)
+    };
   };
 
   const handleMouseUp = () => {
     if (draggedPanel && overlappedPanel) {
-      setPanels(prev => {
-        const newPanels = [...prev];
-        const draggedPanelIndex = newPanels.findIndex(p => p.id === draggedPanel);
-        const overlappedPanelIndex = newPanels.findIndex(p => p.id === overlappedPanel);
-        
-        if (draggedPanelIndex === -1 || overlappedPanelIndex === -1) return prev;
-        
-        const draggedPanelData = { ...newPanels[draggedPanelIndex] };
-        const overlappedPanelData = { ...newPanels[overlappedPanelIndex] };
-        
-        newPanels[draggedPanelIndex] = {
-          ...draggedPanelData,
-          x: overlappedPanelData.x,
-          y: overlappedPanelData.y,
-          width: overlappedPanelData.width,
-          height: overlappedPanelData.height
-        };
-        
-        newPanels[overlappedPanelIndex] = {
-          ...overlappedPanelData,
-          x: draggedPanelData.x,
-          y: draggedPanelData.y,
-          width: draggedPanelData.width,
-          height: draggedPanelData.height
-        };
-        
-        return newPanels;
-      });
+      setLayout(prev => swapNodes(prev, draggedPanel, overlappedPanel));
     }
     
     setDraggedPanel(null);
