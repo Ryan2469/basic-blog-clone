@@ -141,6 +141,10 @@ const DragLayoutPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
 
+  // useEffect(() => {
+  //   const positions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
+  //   setPanels(positions);
+  // }, [layout]);
   useEffect(() => {
     const positions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
     setPanels(positions);
@@ -169,103 +173,233 @@ const DragLayoutPage: React.FC = () => {
     }
   };
 
-  const updateNodeRatio = (node: LayoutNode, panelId: string, newRatio: number): LayoutNode => {
-    if (node.type === 'panel') {
-      return node;
-    }
+  // const updateNodeRatio = (node: LayoutNode, panelId: string, newRatio: number): LayoutNode => {
+  //   if (node.type === 'panel') {
+  //     return node;
+  //   }
 
-    if ((node.left.type === 'panel' && node.left.id === panelId) ||
-        (node.right.type === 'panel' && node.right.id === panelId)) {
+  //   if ((node.left.type === 'panel' && node.left.id === panelId) ||
+  //       (node.right.type === 'panel' && node.right.id === panelId)) {
+  //     return {
+  //       ...node,
+  //       ratio: Math.max(0.1, Math.min(0.9, newRatio))
+  //     };
+  //   }
+
+  //   return {
+  //     ...node,
+  //     left: updateNodeRatio(node.left, panelId, newRatio),
+  //     right: updateNodeRatio(node.right, panelId, newRatio)
+  //   };
+  // };
+
+  const updateNodeRatio = (
+    node: LayoutNode,
+    panelId: string,
+    newRatio: number
+  ): LayoutNode => {
+    if (node.type === 'panel') return node;
+  
+    const { left, right } = node;
+  
+    if (left.type === 'panel' && left.id === panelId) {
       return {
         ...node,
         ratio: Math.max(0.1, Math.min(0.9, newRatio))
       };
     }
-
+  
+    if (right.type === 'panel' && right.id === panelId) {
+      return {
+        ...node,
+        ratio: Math.max(0.1, Math.min(0.9, 1 - newRatio))
+      };
+    }
+  
     return {
       ...node,
-      left: updateNodeRatio(node.left, panelId, newRatio),
-      right: updateNodeRatio(node.right, panelId, newRatio)
+      left: updateNodeRatio(left, panelId, newRatio),
+      right: updateNodeRatio(right, panelId, newRatio)
     };
+  };
+
+  // const handleMouseMove = (e: MouseEvent) => {
+  //   if (!containerRef.current) return;
+    
+  //   const containerRect = containerRef.current.getBoundingClientRect();
+
+  //   if (draggedPanel) {
+  //     const panel = panels.find(p => p.id === draggedPanel);
+  //     if (!panel) return;
+
+  //     const newX = Math.max(0, Math.min(
+  //       e.clientX - dragOffsetRef.current.x - containerRect.left,
+  //       CONTAINER_WIDTH - panel.width
+  //     ));
+  //     const newY = Math.max(0, Math.min(
+  //       e.clientY - dragOffsetRef.current.y - containerRect.top,
+  //       CONTAINER_HEIGHT - panel.height
+  //     ));
+
+  //     // 드래그 중인 패널의 중심점
+  //     const centerX = newX + panel.width / 2;
+  //     const centerY = newY + panel.height / 2;
+
+  //     // 다른 패널과의 오버랩 확인
+  //     let foundOverlap = false;
+  //     for (const otherPanel of panels) {
+  //       if (otherPanel.id === draggedPanel) continue;
+
+  //       const otherCenterX = otherPanel.x + otherPanel.width / 2;
+  //       const otherCenterY = otherPanel.y + otherPanel.height / 2;
+
+  //       if (Math.abs(centerX - otherCenterX) < panel.width / 2 &&
+  //           Math.abs(centerY - otherCenterY) < panel.height / 2) {
+  //         setOverlappedPanel(otherPanel.id);
+  //         foundOverlap = true;
+  //         break;
+  //       }
+  //     }
+
+  //     if (!foundOverlap) {
+  //       setOverlappedPanel(null);
+  //     }
+
+  //     setPanels(prev => prev.map(p => 
+  //       p.id === draggedPanel ? { ...p, x: newX, y: newY } : p
+  //     ));
+  //   } else if (resizingPanel) {
+  //     const panel = panels.find(p => p.id === resizingPanel);
+  //     if (!panel) return;
+
+  //     const parentNode = findParentNode(layout, resizingPanel);
+  //     if (!parentNode) return;
+
+  //     if (resizeDirection === 'e' || resizeDirection === 'se') {
+  //       const newWidth = Math.max(
+  //         MIN_PANEL_WIDTH,
+  //         Math.min(
+  //           e.clientX - containerRect.left - panel.x,
+  //           CONTAINER_WIDTH - panel.x
+  //         )
+  //       );
+  //       const newRatio = newWidth / CONTAINER_WIDTH;
+  //       setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
+  //     }
+
+  //     if (resizeDirection === 's' || resizeDirection === 'se') {
+  //       const newHeight = Math.max(
+  //         MIN_PANEL_HEIGHT,
+  //         Math.min(
+  //           e.clientY - containerRect.top - panel.y,
+  //           CONTAINER_HEIGHT - panel.y
+  //         )
+  //       );
+  //       const newRatio = newHeight / CONTAINER_HEIGHT;
+  //       setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
+  //     }
+  //   }
+  // };
+
+  const findSiblingPanel = (panelId: string): PanelPosition | null => {
+    const parentNode = findParentNode(layout, panelId);
+    if (!parentNode) return null;
+  
+    const siblingId = parentNode.left.type === 'panel' && parentNode.left.id === panelId
+      ? (parentNode.right.type === 'panel' ? parentNode.right.id : '')
+      : (parentNode.left.type === 'panel' ? parentNode.left.id : '');
+  
+    const siblingPanel = panels.find(p => p.id === siblingId);
+    return siblingPanel || null;
   };
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!containerRef.current) return;
-    
+  
     const containerRect = containerRef.current.getBoundingClientRect();
-
+  
     if (draggedPanel) {
       const panel = panels.find(p => p.id === draggedPanel);
       if (!panel) return;
-
-      const newX = Math.max(0, Math.min(
-        e.clientX - dragOffsetRef.current.x - containerRect.left,
-        CONTAINER_WIDTH - panel.width
-      ));
-      const newY = Math.max(0, Math.min(
-        e.clientY - dragOffsetRef.current.y - containerRect.top,
-        CONTAINER_HEIGHT - panel.height
-      ));
-
-      // 드래그 중인 패널의 중심점
-      const centerX = newX + panel.width / 2;
-      const centerY = newY + panel.height / 2;
-
-      // 다른 패널과의 오버랩 확인
-      let foundOverlap = false;
-      for (const otherPanel of panels) {
-        if (otherPanel.id === draggedPanel) continue;
-
+  
+      const newX = e.clientX - dragOffsetRef.current.x - containerRect.left;
+      const newY = e.clientY - dragOffsetRef.current.y - containerRect.top;
+  
+      // 스냅 효과: 가장 가까운 패널의 위치 찾기
+      let closestPanel = null;
+      let closestDistance = Infinity;
+  
+      panels.forEach((otherPanel) => {
+        if (otherPanel.id === draggedPanel) return;
+  
         const otherCenterX = otherPanel.x + otherPanel.width / 2;
         const otherCenterY = otherPanel.y + otherPanel.height / 2;
-
-        if (Math.abs(centerX - otherCenterX) < panel.width / 2 &&
-            Math.abs(centerY - otherCenterY) < panel.height / 2) {
-          setOverlappedPanel(otherPanel.id);
-          foundOverlap = true;
-          break;
+        const distance = Math.hypot(
+          otherCenterX - (newX + panel.width / 2),
+          otherCenterY - (newY + panel.height / 2)
+        );
+  
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPanel = otherPanel.id;
         }
-      }
-
-      if (!foundOverlap) {
-        setOverlappedPanel(null);
-      }
-
-      setPanels(prev => prev.map(p => 
+      });
+  
+      setOverlappedPanel(closestPanel);
+  
+      setPanels(prev => prev.map(p =>
         p.id === draggedPanel ? { ...p, x: newX, y: newY } : p
       ));
     } else if (resizingPanel) {
+      // 기존 리사이징 로직 유지
       const panel = panels.find(p => p.id === resizingPanel);
       if (!panel) return;
-
+  
       const parentNode = findParentNode(layout, resizingPanel);
       if (!parentNode) return;
-
-      if (resizeDirection === 'e' || resizeDirection === 'se') {
-        const newWidth = Math.max(
-          MIN_PANEL_WIDTH,
-          Math.min(
-            e.clientX - containerRect.left - panel.x,
-            CONTAINER_WIDTH - panel.x
-          )
+  
+      const siblingPanel = findSiblingPanel(panel.id);
+      if (!siblingPanel) return;
+  
+      let newRatio: number;
+  
+      if (parentNode.orientation === 'vertical' && (resizeDirection === 'e' || resizeDirection === 'se')) {
+        const totalWidth = panel.width + siblingPanel.width;
+        const newWidth = Math.min(
+          Math.max(MIN_PANEL_WIDTH, e.clientX - containerRect.left - panel.x),
+          totalWidth - MIN_PANEL_WIDTH
         );
-        const newRatio = newWidth / CONTAINER_WIDTH;
+        newRatio = newWidth / totalWidth;
         setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
       }
-
-      if (resizeDirection === 's' || resizeDirection === 'se') {
-        const newHeight = Math.max(
-          MIN_PANEL_HEIGHT,
-          Math.min(
-            e.clientY - containerRect.top - panel.y,
-            CONTAINER_HEIGHT - panel.y
-          )
+  
+      if (parentNode.orientation === 'horizontal' && (resizeDirection === 's' || resizeDirection === 'se')) {
+        const totalHeight = panel.height + siblingPanel.height;
+        const newHeight = Math.min(
+          Math.max(MIN_PANEL_HEIGHT, e.clientY - containerRect.top - panel.y),
+          totalHeight - MIN_PANEL_HEIGHT
         );
-        const newRatio = newHeight / CONTAINER_HEIGHT;
+        newRatio = newHeight / totalHeight;
         setLayout(prev => updateNodeRatio(prev, resizingPanel, newRatio));
       }
     }
   };
+  
+
+
+  // const swapNodes = (node: LayoutNode, id1: string, id2: string): LayoutNode => {
+  //   if (node.type === 'panel') {
+  //     if (node.id === id1) return { ...node, id: id2 };
+  //     if (node.id === id2) return { ...node, id: id1 };
+  //     return node;
+  //   }
+
+  //   return {
+  //     ...node,
+  //     left: swapNodes(node.left, id1, id2),
+  //     right: swapNodes(node.right, id1, id2)
+  //   };
+  // };
 
   const swapNodes = (node: LayoutNode, id1: string, id2: string): LayoutNode => {
     if (node.type === 'panel') {
@@ -273,24 +407,115 @@ const DragLayoutPage: React.FC = () => {
       if (node.id === id2) return { ...node, id: id1 };
       return node;
     }
-
-    return {
-      ...node,
-      left: swapNodes(node.left, id1, id2),
-      right: swapNodes(node.right, id1, id2)
-    };
+  
+    const swappedLeft = swapNodes(node.left, id1, id2);
+    const swappedRight = swapNodes(node.right, id1, id2);
+  
+    return { ...node, left: swappedLeft, right: swappedRight };
   };
 
-  const handleMouseUp = () => {
-    if (draggedPanel && overlappedPanel) {
-      setLayout(prev => swapNodes(prev, draggedPanel, overlappedPanel));
+  const removeNode = (node: LayoutNode, id: string): LayoutNode | null => {
+    if (node.type === 'panel') {
+      return node.id === id ? null : node;
     }
+  
+    const left = removeNode(node.left, id);
+    const right = removeNode(node.right, id);
+  
+    if (!left && !right) return null;
+    if (!left) return right;
+    if (!right) return left;
+  
+    return { ...node, left, right };
+  };
+
+  const insertNode = (
+    node: LayoutNode,
+    targetId: string,
+    newNode: PanelNode,
+    orientation: 'horizontal' | 'vertical',
+    position: 'before' | 'after',
+  ): LayoutNode => {
+    if (node.type === 'panel' && node.id === targetId) {
+      const newSplit: SplitNode = {
+        type: 'split',
+        orientation,
+        ratio: 0.5,
+        left: position === 'before' ? newNode : node,
+        right: position === 'before' ? node : newNode,
+      };
+      return newSplit;
+    }
+  
+    if (node.type === 'split') {
+      return {
+        ...node,
+        left: insertNode(node.left, targetId, newNode, orientation, position),
+        right: insertNode(node.right, targetId, newNode, orientation, position),
+      };
+    }
+  
+    return node;
+  };
+
+  // const handleMouseUp = () => {
+  //   if (draggedPanel && overlappedPanel) {
+  //     setLayout(prev => swapNodes(prev, draggedPanel, overlappedPanel));
+  //   }
     
+  //   setDraggedPanel(null);
+  //   setOverlappedPanel(null);
+  //   setResizingPanel(null);
+  //   setResizeDirection(null);
+  // };
+
+  // const handleMouseUp = () => {
+  //   if (draggedPanel && overlappedPanel && draggedPanel !== overlappedPanel) {
+  //     setLayout(prev => swapNodes(prev, draggedPanel, overlappedPanel));
+  //   }
+  
+  //   setDraggedPanel(null);
+  //   setOverlappedPanel(null);
+  //   setResizingPanel(null);
+  //   setResizeDirection(null);
+  
+  //   const updatedPositions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
+  //   setPanels(updatedPositions);
+  // };
+
+  const handleMouseUp = () => {
+    if (draggedPanel && overlappedPanel && draggedPanel !== overlappedPanel) {
+      const draggedPanelNode = findNodeById(layout, draggedPanel) as PanelNode;
+      if (!draggedPanelNode) return;
+  
+      let updatedLayout = removeNode(layout, draggedPanel);
+      if (!updatedLayout) updatedLayout = draggedPanelNode;
+  
+      // 위치 및 크기를 고려한 새 스플릿 방향 결정
+      const targetPanel = panels.find(p => p.id === overlappedPanel)!;
+      const draggedPanelPos = panels.find(p => p.id === draggedPanel)!;
+  
+      const dx = Math.abs((targetPanel.x + targetPanel.width / 2) - (draggedPanelPos.x + draggedPanelPos.width / 2));
+      const dy = Math.abs((targetPanel.y + targetPanel.height / 2) - (draggedPanelPos.y + draggedPanelPos.height / 2));
+  
+      const orientation = dx > dy ? 'vertical' : 'horizontal';
+      const position = (orientation === 'vertical'
+        ? (draggedPanelPos.x < targetPanel.x ? 'before' : 'after')
+        : (draggedPanelPos.y < targetPanel.y ? 'before' : 'after')
+      );
+  
+      updatedLayout = insertNode(updatedLayout, overlappedPanel, draggedPanelNode, orientation, position);
+  
+      setLayout(updatedLayout);
+    }
+  
     setDraggedPanel(null);
     setOverlappedPanel(null);
     setResizingPanel(null);
     setResizeDirection(null);
   };
+  
+  
 
   useEffect(() => {
     if (draggedPanel || resizingPanel) {
