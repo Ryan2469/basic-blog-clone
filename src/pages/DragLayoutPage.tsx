@@ -342,19 +342,25 @@ const DragLayoutPage: React.FC = () => {
         const panelIndex = updatedPanels.findIndex(p => p.id === draggedPanel);
         if (panelIndex === -1) return prev;
 
-        const newX = e.clientX - dragOffsetRef.current.x - containerRect.left;
-        const newY = e.clientY - dragOffsetRef.current.y - containerRect.top;
+        const newX = Math.max(0, Math.min(
+          e.clientX - dragOffsetRef.current.x - containerRect.left,
+          CONTAINER_WIDTH - updatedPanels[panelIndex].width
+        ));
+        const newY = Math.max(0, Math.min(
+          e.clientY - dragOffsetRef.current.y - containerRect.top,
+          CONTAINER_HEIGHT - updatedPanels[panelIndex].height
+        ));
 
-        const tempPanel = {
+        updatedPanels[panelIndex] = {
           ...updatedPanels[panelIndex],
-          x: Math.max(0, Math.min(newX, CONTAINER_WIDTH - updatedPanels[panelIndex].width)),
-          y: Math.max(0, Math.min(newY, CONTAINER_HEIGHT - updatedPanels[panelIndex].height))
+          x: newX,
+          y: newY
         };
 
         // 다른 패널과의 오버랩 확인
         let foundOverlap = false;
         for (let i = 0; i < updatedPanels.length; i++) {
-          if (i !== panelIndex && checkOverlap(tempPanel, updatedPanels[i])) {
+          if (i !== panelIndex && checkOverlap(updatedPanels[panelIndex], updatedPanels[i])) {
             setOverlappedPanel(updatedPanels[i].id);
             foundOverlap = true;
             break;
@@ -365,7 +371,6 @@ const DragLayoutPage: React.FC = () => {
           setOverlappedPanel(null);
         }
 
-        updatedPanels[panelIndex] = tempPanel;
         return updatedPanels;
       });
     } else if (resizingPanel) {
@@ -412,8 +417,38 @@ const DragLayoutPage: React.FC = () => {
 
   const handleMouseUp = () => {
     if (draggedPanel && overlappedPanel) {
-      swapPanels(draggedPanel, overlappedPanel);
+      setPanels(prev => {
+        const newPanels = [...prev];
+        const draggedPanelIndex = newPanels.findIndex(p => p.id === draggedPanel);
+        const overlappedPanelIndex = newPanels.findIndex(p => p.id === overlappedPanel);
+        
+        if (draggedPanelIndex === -1 || overlappedPanelIndex === -1) return prev;
+        
+        // 두 패널의 위치와 크기를 교환
+        const draggedPanelData = { ...newPanels[draggedPanelIndex] };
+        const overlappedPanelData = { ...newPanels[overlappedPanelIndex] };
+        
+        // 위치와 크기 교환
+        newPanels[draggedPanelIndex] = {
+          ...draggedPanelData,
+          x: overlappedPanelData.x,
+          y: overlappedPanelData.y,
+          width: overlappedPanelData.width,
+          height: overlappedPanelData.height
+        };
+        
+        newPanels[overlappedPanelIndex] = {
+          ...overlappedPanelData,
+          x: draggedPanelData.x,
+          y: draggedPanelData.y,
+          width: draggedPanelData.width,
+          height: draggedPanelData.height
+        };
+        
+        return newPanels;
+      });
     }
+    
     setDraggedPanel(null);
     setOverlappedPanel(null);
     setResizingPanel(null);
@@ -442,7 +477,8 @@ const DragLayoutPage: React.FC = () => {
             width: panel.width,
             height: panel.height,
             transform: panel.id === draggedPanel ? 'scale(1.02)' : 'none',
-            opacity: panel.id === draggedPanel ? 0.8 : 1
+            opacity: panel.id === draggedPanel ? 0.8 : 1,
+            zIndex: panel.id === draggedPanel ? 1000 : 1
           }}
           isDragging={panel.id === draggedPanel}
           isResizing={panel.id === resizingPanel}
@@ -484,7 +520,7 @@ const Panel = styled.div<PanelProps>`
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   user-select: none;
-  transition: box-shadow 0.2s, transform 0.2s, border 0.2s;
+  transition: all 0.3s ease-in-out;
   
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -493,6 +529,7 @@ const Panel = styled.div<PanelProps>`
   ${({ isDragging }) => isDragging && `
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
     z-index: 1000;
+    transition: none;
   `}
 
   ${({ isResizing }) => isResizing && `
