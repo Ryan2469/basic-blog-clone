@@ -1,14 +1,40 @@
-import { useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "firebaseApp";
+import AuthContext from "./Context/AuthContext";
 
 interface PostListProps {
   hasNavigation?: boolean;
+}
+
+interface PostProps {
+  id: string;
+  title: string;
+  email: string;
+  summary: string;
+  content: string;
+  createAt: string;
 }
 
 type TabType = "all" | "my";
 
 export default function PostList({ hasNavigation = true }: PostListProps) {
   const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [ posts, setPosts ] = useState<PostProps>();
+  const { user } = useContext(AuthContext);
+
+  const getPosts = async() => {
+    const datas = await getDocs(collection(db, "posts"));
+    console.log('datas >>> ', datas);
+    datas.forEach((doc) => {
+      console.log('doc >>>' , doc);
+    });
+  }
+
+  useEffect(() => {
+    getPosts();
+  })
 
   return (
     <>
