@@ -145,6 +145,7 @@ const DragLayoutPage: React.FC = () => {
   //   const positions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
   //   setPanels(positions);
   // }, [layout]);
+
   useEffect(() => {
     const positions = calculatePanelPositions(layout, 0, 0, CONTAINER_WIDTH, CONTAINER_HEIGHT);
     setPanels(positions);
@@ -241,11 +242,11 @@ const DragLayoutPage: React.FC = () => {
   //       CONTAINER_HEIGHT - panel.height
   //     ));
 
-  //     // 드래그 중인 패널의 중심점
+  //    
   //     const centerX = newX + panel.width / 2;
   //     const centerY = newY + panel.height / 2;
 
-  //     // 다른 패널과의 오버랩 확인
+  //  
   //     let foundOverlap = false;
   //     for (const otherPanel of panels) {
   //       if (otherPanel.id === draggedPanel) continue;
@@ -325,9 +326,10 @@ const DragLayoutPage: React.FC = () => {
       const newX = e.clientX - dragOffsetRef.current.x - containerRect.left;
       const newY = e.clientY - dragOffsetRef.current.y - containerRect.top;
   
-      // 스냅 효과: 가장 가까운 패널의 위치 찾기
       let closestPanel = null;
       let closestDistance = Infinity;
+      console.log('closestPanel : ', closestPanel);
+      console.log('closestDistance : ', closestDistance);
   
       panels.forEach((otherPanel) => {
         if (otherPanel.id === draggedPanel) return;
@@ -351,7 +353,7 @@ const DragLayoutPage: React.FC = () => {
         p.id === draggedPanel ? { ...p, x: newX, y: newY } : p
       ));
     } else if (resizingPanel) {
-      // 기존 리사이징 로직 유지
+      console.log('resizingPanel : ', resizingPanel);
       const panel = panels.find(p => p.id === resizingPanel);
       if (!panel) return;
   
@@ -384,8 +386,6 @@ const DragLayoutPage: React.FC = () => {
       }
     }
   };
-  
-
 
   // const swapNodes = (node: LayoutNode, id1: string, id2: string): LayoutNode => {
   //   if (node.type === 'panel') {
@@ -402,19 +402,26 @@ const DragLayoutPage: React.FC = () => {
   // };
 
   const swapNodes = (node: LayoutNode, id1: string, id2: string): LayoutNode => {
+
+    console.log('스왑 노드 함수: ', node, id1, id2);
+
     if (node.type === 'panel') {
-      if (node.id === id1) return { ...node, id: id2 };
-      if (node.id === id2) return { ...node, id: id1 };
+      if (node.id === id1) return findNodeById(initialLayout, id2) as PanelNode;
+      if (node.id === id2) return findNodeById(initialLayout, id1) as PanelNode;
       return node;
     }
   
-    const swappedLeft = swapNodes(node.left, id1, id2);
-    const swappedRight = swapNodes(node.right, id1, id2);
-  
-    return { ...node, left: swappedLeft, right: swappedRight };
+    return {
+      ...node,
+      left: swapNodes(node.left, id1, id2),
+      right: swapNodes(node.right, id1, id2),
+    };
   };
 
   const removeNode = (node: LayoutNode, id: string): LayoutNode | null => {
+
+    console.log('이동시 노드 제거: ', node, id);
+
     if (node.type === 'panel') {
       return node.id === id ? null : node;
     }
@@ -491,7 +498,7 @@ const DragLayoutPage: React.FC = () => {
       let updatedLayout = removeNode(layout, draggedPanel);
       if (!updatedLayout) updatedLayout = draggedPanelNode;
   
-      // 위치 및 크기를 고려한 새 스플릿 방향 결정
+      console.log('이동시 노드 제거 2: ', updatedLayout);
       const targetPanel = panels.find(p => p.id === overlappedPanel)!;
       const draggedPanelPos = panels.find(p => p.id === draggedPanel)!;
   
